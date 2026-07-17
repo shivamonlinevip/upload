@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Multi-Agent Financial Advisor</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #161d2e;
+    --border: #262f45;
+    --text: #e7ebf5;
+    --muted: #9aa4bd;
+    --accent: #4f8cff;
+    --green: #3ecf8e;
+    --red: #ff6b6b;
+    --yellow: #f5c453;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .sub { color: var(--muted); margin-bottom: 24px; font-size: 0.9rem; }
+
+  form {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  form .full { grid-column: 1 / -1; }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
+  input, select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #0d1220;
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+  button {
+    grid-column: 1 / -1;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: white;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  #status { margin: 12px 0; color: var(--muted); font-size: 0.9rem; }
+  #error {
+    display: none;
+    background: rgba(255,107,107,0.1);
+    border: 1px solid var(--red);
+    color: var(--red);
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 1.05rem;
+    margin: 0 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card p { line-height: 1.5; color: var(--text); }
+  .card ul { margin: 8px 0; padding-left: 20px; line-height: 1.6; }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .badge.positive { background: rgba(62,207,142,0.15); color: var(--green); }
+  .badge.negative { background: rgba(255,107,107,0.15); color: var(--red); }
+  .badge.neutral, .badge.medium { background: rgba(245,196,83,0.15); color: var(--yellow); }
+
+  .alloc-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .alloc-row:last-child { border-bottom: none; }
+  .alloc-bar {
+    height: 6px;
+    background: var(--accent);
+    border-radius: 4px;
+    margin-top: 4px;
+  }
+
+  .warn-list li { color: var(--yellow); }
+  .issue-list li { color: var(--red); }
+
+  #finalConfidence {
+    text-align: center;
+    font-size: 2.2rem;
+    font-weight: 700;
+  }
+  #finalConfidence span { font-size: 1rem; color: var(--muted); display: block; font-weight: 400; }
+
+  #results { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Multi-Agent Financial Advisor</h1>
+  <div class="sub">Market → News → Risk → Portfolio → Verifier → Explainability</div>
+
+  <form id="analyzeForm">
+    <div>
+      <label for="company">Company</label>
+      <input type="text" id="company" placeholder="e.g. Tata Motors" required />
+    </div>
+    <div>
+      <label for="budget">Budget (₹)</label>
+      <input type="number" id="budget" placeholder="e.g. 100000" min="1" required />
+    </div>
+    <div>
+      <label for="duration">Investment duration</label>
+      <input type="text" id="duration" placeholder="e.g. 5 years" required />
+    </div>
+    <div>
+      <label for="risk">Risk profile</label>
+      <select id="risk">
+        <option value="conservative">Conservative</option>
+        <option value="moderate" selected>Moderate</option>
+        <option value="aggressive">Aggressive</option>
+      </select>
+    </div>
+    <button type="submit" id="submitBtn">Run Analysis</button>
+  </form>
+
+  <div id="status"></div>
+  <div id="error"></div>
+
+  <div id="results">
+    <div class="card">
+      <h2>📊 Market Analysis</h2>
+      <p id="marketSummary"></p>
+      <ul id="marketStrengths"></ul>
+      <ul id="marketWeaknesses" class="issue-list"></ul>
+    </div>
+
+    <div class="card">
+      <h2>📰 News Analysis <span id="sentimentBadge" class="badge"></span></h2>
+      <ul id="newsPositive"></ul>
+      <ul id="newsNegative" class="issue-list"></ul>
+    </div>
+
+    <div class="card">
+      <h2>⚠️ Risk Assessment <span id="riskBadge" class="badge"></span></h2>
+      <p id="riskReasoning"></p>
+    </div>
+
+    <div class="card">
+      <h2>💼 Portfolio Recommendation</h2>
+      <div id="allocationList"></div>
+      <p id="strategy" style="margin-top:12px"></p>
+      <ul id="warnings" class="warn-list"></ul>
+    </div>
+
+    <div class="card">
+      <h2>✅ Verification</h2>
+      <p id="verificationStatus"></p>
+      <ul id="verificationIssues" class="issue-list"></ul>
+    </div>
+
+    <div class="card">
+      <h2>💡 Explainability</h2>
+      <p id="explainSummary"></p>
+      <strong>Reasoning</strong>
+      <ul id="explainReasoning"></ul>
+      <strong>Key assumptions</strong>
+      <ul id="explainAssumptions"></ul>
+      <strong>Could change with</strong>
+      <ul id="explainUncertainties"></ul>
+    </div>
+
+    <div class="card">
+      <div id="finalConfidence"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // If you serve this file from the same FastAPI app (via the StaticFiles
+  // mount in api.py), leave this as an empty string (same-origin relative call).
+  // If you open this HTML file directly (file://) or host it elsewhere,
+  // set this to your backend URL, e.g. "http://localhost:8000"
+  const API_BASE = "http://localhost:8000";
+
+  const form = document.getElementById("analyzeForm");
+  const submitBtn = document.getElementById("submitBtn");
+  const statusEl = document.getElementById("status");
+  const errorEl = document.getElementById("error");
+  const results = document.getElementById("results");
+
+  function fillList(id, items, prefix = "") {
+    const el = document.getElementById(id);
+    el.innerHTML = "";
+    (items || []).forEach((item) => {
+      const li = document.createElement("li");
+      li.textContent = prefix + item;
+      el.appendChild(li);
+    });
+  }
+
+  function badgeClass(value) {
+    const v = (value || "").toString().toLowerCase();
+    if (["positive", "low"].includes(v)) return "positive";
+    if (["negative", "high"].includes(v)) return "negative";
+    return "neutral";
+  }
+
+  function renderReport(data) {
+    const m = data.market_analysis || {};
+    const n = data.news_analysis || {};
+    const r = data.risk_assessment || {};
+    const p = data.portfolio_recommendation || {};
+    const v = data.verification || {};
+    const e = data.explainability || {};
+
+    document.getElementById("marketSummary").textContent = m.market_summary || "";
+    fillList("marketStrengths", m.strengths, "+ ");
+    fillList("marketWeaknesses", m.weaknesses, "− ");
+
+    const sentimentBadge = document.getElementById("sentimentBadge");
+    sentimentBadge.textContent = n.overall_sentiment || "N/A";
+    sentimentBadge.className = "badge " + badgeClass(n.overall_sentiment);
+    fillList("newsPositive", n.positive_news, "+ ");
+    fillList("newsNegative", n.negative_news, "! ");
+
+    const riskBadge = document.getElementById("riskBadge");
+    riskBadge.textContent = r.overall_risk || "N/A";
+    riskBadge.className = "badge " + badgeClass(r.overall_risk);
+    document.getElementById("riskReasoning").textContent = r.risk_reasoning || "";
+
+    const allocEl = document.getElementById("allocationList");
+    allocEl.innerHTML = "";
+    (p.allocation || []).forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "alloc-row";
+      row.innerHTML = `
+        <span>${item.asset}</span>
+        <span>${item.percentage}%</span>
+      `;
+      allocEl.appendChild(row);
+      const bar = document.createElement("div");
+      bar.className = "alloc-bar";
+      bar.style.width = `${item.percentage}%`;
+      allocEl.appendChild(bar);
+    });
+    document.getElementById("strategy").textContent = p.expected_strategy || "";
+    fillList("warnings", p.warnings, "⚠ ");
+
+    document.getElementById("verificationStatus").textContent = v.verified
+      ? "No unsupported claims detected."
+      : "Issues detected — see below.";
+    fillList("verificationIssues", v.issues, "− ");
+
+    document.getElementById("explainSummary").textContent = e.summary || "";
+    fillList("explainReasoning", e.reasoning, "− ");
+    fillList("explainAssumptions", e.assumptions, "− ");
+    fillList("explainUncertainties", e.uncertainties, "− ");
+
+    document.getElementById("finalConfidence").innerHTML = `
+      ${data.final_confidence}%
+      <span>FINAL CONFIDENCE</span>
+    `;
+
+    results.style.display = "block";
+  }
+
+  form.addEventListener("submit", async (evt) => {
+    evt.preventDefault();
+    errorEl.style.display = "none";
+    results.style.display = "none";
+    submitBtn.disabled = true;
+    statusEl.textContent = "Running the 6-agent pipeline... this can take 20–60s.";
+
+    const payload = {
+      company: document.getElementById("company").value,
+      budget: parseFloat(document.getElementById("budget").value),
+      duration: document.getElementById("duration").value,
+      risk_profile: document.getElementById("risk").value,
+    };
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(errBody.detail || `Request failed with status ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      renderReport(data);
+      statusEl.textContent = "";
+    } catch (err) {
+      errorEl.textContent = err.message || "Something went wrong.";
+      errorEl.style.display = "block";
+      statusEl.textContent = "";
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
